@@ -107,6 +107,7 @@ foreach my $id (keys %queues) {
     my $queue = RT::Queue->new($session{'CurrentUser'});
     $queue->Load($id);
     $CustomFields->LimitToQueue($queue->Id) if $queue->Id;
+    $CustomFields->SetContextObject( $queue ) if keys %queues == 1;
 }
 $CustomFields->LimitToGlobal;
 
