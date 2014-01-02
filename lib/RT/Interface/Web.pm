@@ -1716,6 +1716,49 @@ sub RewriteInlineImages {
     return @rewritten;
 }
 
+=head2 GetCustomFieldInputName
+
+Returns the standard custom field input name.
+
+=cut
+
+sub GetCustomFieldInputName {
+    my %args = (
+        CustomField => undef,
+        Object      => undef,
+        Grouping    => undef,
+        @_,
+    );
+
+    my $name = join '-', 'Object', ref( $args{Object} ), ( $args{Object}->id || '' ),
+        'CustomField' . ( $args{Grouping} ? ":$args{Grouping}" : '' ), $args{CustomField}->id;
+
+    if ( $args{CustomField}->Type eq 'Select' ) {
+        if ( $args{CustomField}->RenderType eq 'List' ) {
+            $name .= '-Value';
+        }
+        else {
+            $name .= '-Values';
+        }
+    }
+    elsif ( $args{CustomField}->Type =~ /^(?:Binary|Image)$/ ) {
+        $name .= '-Upload';
+    }
+    elsif ( $args{CustomField}->Type =~ /^(?:Date|DateTime|Text|Wikitext)$/ ) {
+        $name .= '-Values';
+    }
+    else {
+        if ( $args{CustomField}->MaxValues != 1 ) {
+            $name .= '-Values';
+        }
+        else {
+            $name .= '-Value';
+        }
+    }
+
+    return $name;
+}
+
 package HTML::Mason::Commands;
 
 use vars qw/$r $m %session/;
@@ -3010,7 +3053,7 @@ sub _ProcessObjectCustomFieldUpdates {
     # the browser gives you a blank value which causes CFs to be processed twice
     if (   defined $args{'ARGS'}->{'Values'}
         && !length $args{'ARGS'}->{'Values'}
-        && $args{'ARGS'}->{'Values-Magic'} )
+        && ($args{'ARGS'}->{'Values-Magic'} || $args{'ARGS'}->{'Value-Magic'}) || $args{'ARGS'}->{'Upload-Magic'})
     {
         delete $args{'ARGS'}->{'Values'};
     }
@@ -3023,7 +3066,7 @@ sub _ProcessObjectCustomFieldUpdates {
 
         # since http won't pass in a form element with a null value, we need
         # to fake it
-        if ( $arg eq 'Values-Magic' ) {
+        if ( $arg =~ /-Magic$/ ) {
 
             # We don't care about the magic, if there's really a values element;
             next if defined $args{'ARGS'}->{'Value'}  && length $args{'ARGS'}->{'Value'};
@@ -3166,7 +3209,7 @@ sub ProcessObjectCustomFieldUpdatesForCreate {
             while (my ($arg, $value) = each %{ $custom_fields{$class}{0}{$cfid}{$groupings[0]} }) {
                 # Values-Magic doesn't matter on create; no previous values are being removed
                 # Category is irrelevant for the actual value
-                next if $arg eq "Values-Magic" or $arg eq "Category";
+                next if $arg =~ /-Magic$/ or $arg eq "Category";
 
                 push @values, _NormalizeObjectCustomFieldValue(
                     CustomField => $cf,
@@ -3901,6 +3944,10 @@ sub CSSClass {
     return '' unless defined $value;
     $value =~ s/[^A-Za-z0-9_-]/_/g;
     return $value;
+}
+
+sub GetCustomFieldInputName {
+    RT::Interface::Web::GetCustomFieldInputName(@_);
 }
 
 package RT::Interface::Web;
